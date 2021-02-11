@@ -13,8 +13,10 @@ function main_problem(static::Bool)
     prod_tij = [th[i] * th[j] for i in 1:n for j in 1:n]
     prod_tij_index = sortperm(prod_tij, rev=true)
 
-    m = Model(with_optimizer(CPLEX.Optimizer, CPXPARAM_MIP_Display=1, CPXPARAM_TimeLimit = 300))
+    m = Model(with_optimizer(CPLEX.Optimizer, CPXPARAM_MIP_Display=1, CPXPARAM_TimeLimit = 1))
+    # m = Model(with_optimizer(CPLEX.Optimizer, CPXPARAM_MIP_Display=1))
 
+    set_silent(m)
     @variable(m, z)
     @variable(m, x[1:n,1:n], Bin)
     @variable(m, u[1:n] >=0)
@@ -78,7 +80,7 @@ function main_problem(static::Bool)
     
         z_sub = sum(sum_tij[delta1_array[i]] for i in 1:length(delta1_array))
                     + sum(2 * prod_tij[delta2_array[j]] for j in 1:length(delta2_array))
-        
+        println("z , zstar : ",z_sub, " ", z_star)
         if abs(z_sub - z_star) <= EPSILON
             return
         else
@@ -90,7 +92,7 @@ function main_problem(static::Bool)
     end
     
     if (!static)
-        MOI.set(m, MOI.LazyConstraintCallback(), callback_cutting_planes)
+        MOI.set(m, MOI.LazyConstraintCallback(), callback_heuristic)
     end
     
     return m
@@ -203,26 +205,26 @@ end
 function solve_instances()
     open("log"*string(Dates.now())*".txt", "w+") do io
         redirect_stdout(io) do
-#             for n in 15:20
-#                 filename = "n_"*string(n)*"-euclidean_true"
-#                 include("data/"*filename)
-# #                 time_e = @elapsed res = cutting_planes()
-#                 time_e = @elapsed res = branch_cut()
-# #                 time_e = @elapsed res = static_solve()
-# #                 time_e = @elapsed res = dual_solve()
-#                 println("\n#########\nSolved "*filename*" in "*string(time_e)*" s"*" with solution "*string(res))
-#                 flush(stdout)
+            for n in 15:20
+                filename = "n_"*string(n)*"-euclidean_true"
+                include("data/"*filename)
+#                 time_e = @elapsed res = cutting_planes()
+                time_e = @elapsed res = branch_cut()
+#                 time_e = @elapsed res = static_solve()
+#                 time_e = @elapsed res = dual_solve()
+                println("\n#########\nSolved "*filename*" in "*string(time_e)*" s"*" with solution "*string(res))
+                flush(stdout)
                 
-#                 filename = "n_"*string(n)*"-euclidean_false"
-#                 include("data/"*filename)
-# #                 time_e = @elapsed res = cutting_planes()
-#                 time_e = @elapsed res = branch_cut()
-# #                 time_e = @elapsed res = static_solve()
-# #                 time_e = @elapsed res = dual_solve()
-#                 println("\n#########\nSolved false "*filename*" in "*string(time_e)*" s"*" with solution "*string(res))
-#                 flush(stdout)
-#             end
-            for n in range(65, step=5, stop=100)
+                filename = "n_"*string(n)*"-euclidean_false"
+                include("data/"*filename)
+#                 time_e = @elapsed res = cutting_planes()
+                time_e = @elapsed res = branch_cut()
+#                 time_e = @elapsed res = static_solve()
+#                 time_e = @elapsed res = dual_solve()
+                println("\n#########\nSolved false "*filename*" in "*string(time_e)*" s"*" with solution "*string(res))
+                flush(stdout)
+            end
+            for n in range(25, step=5, stop=100)
                 filename = "n_"*string(n)*"-euclidean_true"
                 include("data/"*filename)
 #                 time_e = @elapsed res = cutting_planes()
@@ -247,9 +249,9 @@ function solve_instances()
 end
 
 function main()
-    filename = "n_5-euclidean_true"
+    filename = "n_5-euclidean_false"
     include("data/"*filename)
-    for i in 1:10
+    for i in 1:1
         # time_e = @elapsed res = cutting_planes()
         time_e = @elapsed res = branch_cut()
         println("\n#########\nSolved "*filename*" in "*string(time_e)*" s"*" with solution "*string(res))
@@ -257,4 +259,4 @@ function main()
     end
 end
 
-solve_instances()
+main()
