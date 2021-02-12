@@ -13,8 +13,8 @@ function main_problem(static::Bool)
     prod_tij = [th[i] * th[j] for i in 1:n for j in 1:n]
     prod_tij_index = sortperm(prod_tij, rev=true)
 
-    m = Model(with_optimizer(CPLEX.Optimizer, CPXPARAM_MIP_Display=1, CPXPARAM_TimeLimit = 1))
-    # m = Model(with_optimizer(CPLEX.Optimizer, CPXPARAM_MIP_Display=1))
+    # m = Model(with_optimizer(CPLEX.Optimizer, CPXPARAM_MIP_Display=1, CPXPARAM_TimeLimit = 10))
+    m = Model(with_optimizer(CPLEX.Optimizer, CPXPARAM_MIP_Display=1))
 
     set_silent(m)
     @variable(m, z)
@@ -76,22 +76,68 @@ function main_problem(static::Bool)
         delta1_array = delta1_array_temp[1:min(length(delta1_array_temp), T)]
 
         delta2_array_temp = filter(index -> x_star[(index -1) ÷ n + 1, index - ((index -1) ÷ n)*n] > EPSILON, prod_tij_index)
-        delta2_array = delta2_array_temp[1:min(length(delta2_array_temp), T*T)]
-    
-        z_sub = sum(sum_tij[delta1_array[i]] for i in 1:length(delta1_array))
-                    + sum(2 * prod_tij[delta2_array[j]] for j in 1:length(delta2_array))
-        println("z , zstar : ",z_sub, " ", z_star)
+        if T*T % 2 == 0
+            delta2_array = delta2_array_temp[1:min(length(delta2_array_temp), Int(T*T/2))]
+            z_sub = (sum(t[i,j] * x_star[i,j] for i in 1:n for j in 1:n) 
+                    + sum(sum_tij[delta1_array[i]] for i in 1:length(delta1_array))
+                    + sum(2 * prod_tij[delta2_array[j]] for j in 1:length(delta2_array)))
+        else
+            delta2_array = delta2_array_temp[1:min(length(delta2_array_temp), Int(ceil(T*T/2)))]
+            if length(delta2_array) < Int(ceil(T*T/2))
+                z_sub = (sum(t[i,j] * x_star[i,j] for i in 1:n for j in 1:n)
+                        + sum(sum_tij[delta1_array[i]] for i in 1:length(delta1_array))
+                        + sum(2 * prod_tij[delta2_array[j]] for j in 1:length(delta2_array)))
+            else
+                z_sub = (sum(t[i,j] * x_star[i,j] for i in 1:n for j in 1:n)
+                        + sum(sum_tij[delta1_array[i]] for i in 1:length(delta1_array))
+                        + sum(2 * prod_tij[delta2_array[j]] for j in 1:(length(delta2_array)-1))
+                        + prod_tij[delta2_array[length(delta2_array)]])
+            end
+        end
+
+        # println("z , zstar : ",z_sub, " ", z_star)
+        # println("sum ", sum(t[i,j] * x_star[i,j] for i in 1:n for j in 1:n))
+        # println("sum ", sum(sum_tij[delta1_array[i]] for i in 1:length(delta1_array)))
+        # println("sum prod ", sum(2 * prod_tij[delta2_array[j]] for j in 1:length(delta2_array)))
         if abs(z_sub - z_star) <= EPSILON
             return
         else
-            constraint = @build_constraint(z >= sum(t[i,j] for i in 1:n for j in 1:n)
-                                                + sum(sum_tij[delta1_array[i]] for i in 1:length(delta1_array))
-                                                + sum(2 * prod_tij[delta2_array[j]] for j in 1:length(delta2_array)) )
+            if T*T % 2 == 0
+                constraint = @build_constraint(z >= sum(t[i,j] * x[i,j] for i in 1:n for j in 1:n)
+                                                    + sum(sum_tij[delta1_array[i]]
+                                                            * x[(delta1_array[i]-1) ÷ n + 1, delta1_array[i] - ((delta1_array[i] -1) ÷ n)*n]
+                                                         for i in 1:length(delta1_array))
+                                                    + sum(2 * prod_tij[delta2_array[j]]
+                                                            * x[(delta2_array[j]-1) ÷ n + 1, delta2_array[j] - ((delta2_array[j] -1) ÷ n)*n]
+                                                         for j in 1:length(delta2_array)) )
+            else
+                if length(delta2_array) < Int(ceil(T*T/2))
+                    constraint = @build_constraint(z >= sum(t[i,j] * x[i,j] for i in 1:n for j in 1:n)
+                                                        + sum(sum_tij[delta1_array[i]]
+                                                                * x[(delta1_array[i]-1) ÷ n + 1, delta1_array[i] - ((delta1_array[i] -1) ÷ n)*n]
+                                                             for i in 1:length(delta1_array))
+                                                        + sum(2 * prod_tij[delta2_array[j]]
+                                                                * x[(delta2_array[j]-1) ÷ n + 1, delta2_array[j] - ((delta2_array[j] -1) ÷ n)*n]
+                                                             for j in 1:length(delta2_array)) )
+                else
+                    constraint = @build_constraint(z >= sum(t[i,j] * x[i,j] for i in 1:n for j in 1:n)
+                                                        + sum(sum_tij[delta1_array[i]]
+                                                                * x[(delta1_array[i]-1) ÷ n + 1, delta1_array[i] - ((delta1_array[i] -1) ÷ n)*n]
+                                                             for i in 1:length(delta1_array))
+                                                        + sum(2 * prod_tij[delta2_array[j]]
+                                                                * x[(delta2_array[j]-1) ÷ n + 1, delta2_array[j] - ((delta2_array[j] -1) ÷ n)*n]
+                                                             for j in 1:length(delta2_array)) 
+                                                        + prod_tij[delta2_array[length(delta2_array)]]
+                                                                * x[(delta2_array[length(delta2_array)]-1) ÷ n + 1,
+                                                                        delta2_array[length(delta2_array)] - ((delta2_array[length(delta2_array)] -1) ÷ n)*n])
+                end
+            end
             MOI.submit(m, MOI.LazyConstraint(callback_data), constraint)
         end
     end
     
     if (!static)
+        # MOI.set(m, MOI.LazyConstraintCallback(), callback_cutting_planes)
         MOI.set(m, MOI.LazyConstraintCallback(), callback_heuristic)
     end
     
@@ -249,14 +295,18 @@ function solve_instances()
 end
 
 function main()
-    filename = "n_5-euclidean_false"
+    filename = "n_10-euclidean_true"
     include("data/"*filename)
-    for i in 1:1
+    moyenne = 0
+    longueur = 1
+    for i in 1:longueur
         # time_e = @elapsed res = cutting_planes()
         time_e = @elapsed res = branch_cut()
+        moyenne += time_e
         println("\n#########\nSolved "*filename*" in "*string(time_e)*" s"*" with solution "*string(res))
         flush(stdout)
     end
+    println("Temps moyen : ", moyenne / longueur)
 end
 
 main()

@@ -222,7 +222,7 @@ function solve_instances()
 #                 println("\n#########\nSolved false "*filename*" in "*string(time_e)*" s"*" with solution "*string(res))
 #                 flush(stdout)
 #             end
-            for n in range(65, step=5, stop=100)
+            for n in range(85, step=5, stop=100)
                 filename = "n_"*string(n)*"-euclidean_true"
                 include("data/"*filename)
 #                 time_e = @elapsed res = cutting_planes()
